@@ -47,8 +47,22 @@ def _extract_areas(text):
         return []
 
 
+_MAP_PLACEHOLDER = """<div style="text-align:center;padding:40px;color:#6868a0;background:#121228;border-radius:12px;border:1px solid #2a2a4a;">
+<div style="font-size:48px;margin-bottom:12px;">🗺️</div>
+<div style="font-size:16px;font-weight:600;color:#a0a0c0;">Sydney SA2 Resource Map</div>
+<div style="font-size:12px;margin-top:6px;">Loading interactive map...</div></div>"""
+
+
+def _safe_build_map(highlight_areas=None):
+    """Build map HTML, return placeholder on failure."""
+    try:
+        return _build_map_html(highlight_areas)
+    except Exception as e:
+        return _MAP_PLACEHOLDER
+
+
 def create_ui(agent, session_mgr):
-    initial_map = _build_map_html()
+    initial_map = _MAP_PLACEHOLDER  # Don't render 19MB map until first user request
 
     with gr.Blocks(title="GeoAnalysis — Sydney Resource Intelligence") as demo:
 
