@@ -194,14 +194,7 @@ def create_ui(agent, session_manager) -> gr.Blocks:
     import time
     from dashboard.map_component import quick_map_html
 
-    with gr.Blocks(
-        title="GeoAnalysis — Sydney Resource Intelligence",
-        css=CUSTOM_CSS,
-        theme=gr.themes.Base(),
-        head="""
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        """,
-    ) as demo:
+    with gr.Blocks(title="GeoAnalysis — Sydney Resource Intelligence") as demo:
 
         # ── Header ─────────────────────────────────────────
         gr.HTML("""
@@ -226,18 +219,7 @@ def create_ui(agent, session_manager) -> gr.Blocks:
                 chatbot = gr.Chatbot(
                     label="",
                     height=400,
-                    show_copy_button=True,
-                    bubble_full_width=False,
-                    placeholder="""
-                    <div style='color:#6868a0;text-align:center;padding:40px 20px;'>
-                        <div style='font-size:40px;margin-bottom:12px;'>🏙️</div>
-                        <div style='font-size:15px;font-weight:600;color:#a0a0c0;margin-bottom:6px;'>
-                            Ask anything about Sydney's resource distribution
-                        </div>
-                        <div style='font-size:12px;color:#6868a0;'>
-                            e.g. "Which areas near Parramatta lack public services?"
-                        </div>
-                    </div>""",
+                    placeholder="Ask about resource gaps...",
                 )
                 msg = gr.Textbox(
                     label="",
@@ -355,6 +337,8 @@ def create_ui(agent, session_manager) -> gr.Blocks:
 
 
 def launch(config_path: str = "config.yaml", share: bool = False, port: int = 7860):
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from src.config import load_config
     from src.agent import create_agent_with_kb
     from src.session.session_manager import SessionManager
@@ -373,6 +357,7 @@ def launch(config_path: str = "config.yaml", share: bool = False, port: int = 78
     demo.queue(default_concurrency_limit=1).launch(
         server_port=port,
         share=share,
+        css=CUSTOM_CSS,
         favicon_path=None,
         show_api=False,
     )
