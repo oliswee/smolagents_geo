@@ -1,365 +1,127 @@
-"""GeoAnalysis Agent — Dashboard.
+"""GeoAnalysis Agent — Gradio Dashboard (Gradio 6.x compatible)."""
+import sys, os, json, time, psycopg2, pandas as pd
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-Aesthetic: editorial data-dashboard. Dark navy + warm amber accents.
-Hero element: Interactive Sydney SA2 map with live RAI color-coding.
-Layout: Chat sidebar + Map viewport + Context footer.
-"""
 import gradio as gr
-import re
-from pathlib import Path
 
-
-# ═══════════════════════════════════════════════════════════
-# Custom CSS — distinctive, not cookie-cutter
-# ═══════════════════════════════════════════════════════════
-CUSTOM_CSS = r"""
-/* ── Fonts ──────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap');
-
-/* ── Global ─────────────────────────────────────────────── */
-:root {
-  --bg-primary: #0a0a14;
-  --bg-secondary: #121228;
-  --bg-tertiary: #1a1a32;
-  --surface: #1e1e3a;
-  --surface-hover: #28284c;
-  --border: #2a2a4a;
-  --border-active: #4a4a7a;
-  --text-primary: #e8e8f0;
-  --text-secondary: #a0a0c0;
-  --text-muted: #6868a0;
-  --accent-amber: #f59e0b;
-  --accent-coral: #ff6b6b;
-  --accent-teal: #2dd4bf;
-  --accent-blue: #60a5fa;
-  --accent-green: #4ade80;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --shadow: 0 4px 24px rgba(0,0,0,0.4);
-  --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.gradio-container {
-  background: var(--bg-primary) !important;
-  font-family: 'DM Sans', 'Segoe UI', system-ui, -apple-system, sans-serif !important;
-  color: var(--text-primary) !important;
-  max-width: 100% !important;
-}
-
-/* ── Header ─────────────────────────────────────────────── */
-.app-header {
-  padding: 20px 28px 12px;
-  border-bottom: 1px solid var(--border);
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
-}
-.app-header h1 {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
-  letter-spacing: -0.02em;
-}
-.app-header h1 span { color: var(--accent-amber); }
-.app-header p {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin: 4px 0 0 0;
-}
-
-/* ── Chat panel ─────────────────────────────────────────── */
-.chat-panel {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-}
-
-/* ── Buttons ────────────────────────────────────────────── */
-button.primary {
-  background: var(--accent-amber) !important;
-  color: #0a0a14 !important;
-  font-weight: 600 !important;
-  border: none !important;
-  border-radius: var(--radius-sm) !important;
-  transition: all var(--transition) !important;
-}
-button.primary:hover {
-  background: #fbbf24 !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(245,158,11,0.3);
-}
-
-.quick-btn {
-  background: var(--surface) !important;
-  color: var(--text-secondary) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius-sm) !important;
-  font-size: 12px !important;
-  transition: all var(--transition) !important;
-  text-align: left !important;
-  padding: 8px 12px !important;
-}
-.quick-btn:hover {
-  background: var(--surface-hover) !important;
-  color: var(--text-primary) !important;
-  border-color: var(--border-active) !important;
-}
-
-/* ── Map container ──────────────────────────────────────── */
-.map-container {
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-}
-
-/* ── Status bar ─────────────────────────────────────────── */
-.status-bar {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px 16px;
-  font-size: 12px;
-  color: var(--text-muted);
-  font-family: 'JetBrains Mono', 'Consolas', monospace;
-}
-.status-bar .label { color: var(--text-secondary); font-weight: 500; }
-.status-bar .value { color: var(--accent-teal); }
-
-/* ── Tab override ───────────────────────────────────────── */
-.tabs {
-  border-bottom: 1px solid var(--border) !important;
-}
-.tab-nav button {
-  color: var(--text-secondary) !important;
-  font-weight: 500 !important;
-}
-.tab-nav button.selected {
-  color: var(--accent-amber) !important;
-  border-bottom: 2px solid var(--accent-amber) !important;
-}
-
-/* ── Markdown ───────────────────────────────────────────── */
-.prose { color: var(--text-secondary); font-size: 13px; line-height: 1.7; }
-.prose h3 { color: var(--text-primary); font-size: 15px; }
-
-/* ── Chatbot customization ──────────────────────────────── */
-.bubble-wrap { font-size: 13px; }
-.message-row.bot .message { background: var(--surface); border-radius: var(--radius-sm); }
-.message-row.user .message { background: var(--accent-amber); color: #0a0a14; }
-
-/* ── Footer ─────────────────────────────────────────────── */
-.app-footer {
-  padding: 10px 28px;
-  border-top: 1px solid var(--border);
-  font-size: 11px;
-  color: var(--text-muted);
-  display: flex;
-  justify-content: space-between;
-}
+CUSTOM_CSS = """
+.gradio-container { background: #0a0a14 !important; font-family: 'Segoe UI', system-ui, sans-serif !important; color: #e8e8f0 !important; max-width: 100% !important; }
+.app-header { padding: 18px 24px 10px; border-bottom: 1px solid #2a2a4a; background: linear-gradient(135deg, #121228 0%, #0a0a14 100%); }
+.app-header h1 { font-size: 22px; font-weight: 700; color: #e8e8f0; margin: 0; }
+.app-header h1 span { color: #f59e0b; }
+.app-header p { font-size: 12px; color: #a0a0c0; margin: 3px 0 0 0; }
+.map-container { border-radius: 12px; overflow: hidden; border: 1px solid #2a2a4a; }
+.quick-btn { background: #1e1e3a !important; color: #a0a0c0 !important; border: 1px solid #2a2a4a !important; border-radius: 8px !important; font-size: 12px !important; text-align: left !important; padding: 8px 12px !important; }
+.quick-btn:hover { background: #28284c !important; color: #e8e8f0 !important; border-color: #4a4a7a !important; }
+.status-bar { background: #1e1e3a; border: 1px solid #2a2a4a; border-radius: 8px; padding: 10px 14px; font-size: 11px; color: #6868a0; font-family: 'Consolas', monospace; }
 """
 
 
-# ═══════════════════════════════════════════════════════════
-# Helper: extract area names from Agent response
-# ═══════════════════════════════════════════════════════════
-def _extract_areas(text: str) -> list:
-    """Heuristic: find SA2 area names mentioned in Agent response."""
-    import pandas as pd, psycopg2, os
-
-    # Load known area names
+def _get_db_password():
     try:
-        pw = os.environ.get("DB_PASSWORD", "")
-        raw = psycopg2.connect(
-            host='localhost', port=5432, dbname='geoanalysis',
-            user='postgres', password=pw
-        )
+        with open("Credentials.json") as f:
+            return json.load(f)["password"]
+    except Exception:
+        return os.environ.get("DB_PASSWORD", "")
+
+
+def _build_map_html(highlight_areas=None):
+    from dashboard.map_component import build_sydney_map, map_to_html
+    pw = _get_db_password()
+    raw = psycopg2.connect(host='localhost', port=5432, dbname='geoanalysis', user='postgres', password=pw)
+    df = pd.read_sql_query("SELECT sa2_name, final_score, rank_overall FROM well_resourced_scores", raw)
+    raw.close()
+    m = build_sydney_map(df, highlight_areas=highlight_areas)
+    return map_to_html(m)
+
+
+def _extract_areas(text):
+    pw = _get_db_password()
+    try:
+        raw = psycopg2.connect(host='localhost', port=5432, dbname='geoanalysis', user='postgres', password=pw)
         df = pd.read_sql_query('SELECT "SA2_NAME21" FROM selected_sa2_regions', raw)
         raw.close()
         known = set(df['SA2_NAME21'].tolist())
+        return [n for n in sorted(known, key=len, reverse=True) if n.lower() in text.lower()][:8]
     except Exception:
         return []
 
-    found = []
-    for name in sorted(known, key=len, reverse=True):
-        if name.lower() in text.lower():
-            found.append(name)
-    return found[:8]
 
-
-# ═══════════════════════════════════════════════════════════
-# Main UI
-# ═══════════════════════════════════════════════════════════
-def create_ui(agent, session_manager) -> gr.Blocks:
-    import time
-    from dashboard.map_component import quick_map_html
+def create_ui(agent, session_mgr):
+    initial_map = _build_map_html()
 
     with gr.Blocks(title="GeoAnalysis — Sydney Resource Intelligence") as demo:
 
-        # ── Header ─────────────────────────────────────────
-        gr.HTML("""
-        <div class="app-header">
-            <h1>Geo<span>Analysis</span></h1>
-            <p>Sydney SA2 Resource Intelligence &mdash; 109 areas &middot; 4 dimensions &middot; Real-time spatial analysis</p>
-        </div>
-        """)
+        gr.HTML("""<div class="app-header"><h1>Geo<span>Analysis</span></h1><p>Sydney SA2 Resource Intelligence — 109 areas · 4 dimensions · Real-time spatial analysis</p></div>""")
 
-        # ── Map (hero element, full-width) ─────────────────
+        map_display = gr.HTML(value=initial_map, elem_classes="map-container")
+
         with gr.Row():
-            initial_map = quick_map_html()
-            map_display = gr.HTML(
-                value=initial_map,
-                elem_classes="map-container",
-            )
-
-        # ── Main 2-column layout ───────────────────────────
-        with gr.Row(equal_height=False):
-            # Left: chat panel
-            with gr.Column(scale=3, elem_classes="chat-panel"):
-                chatbot = gr.Chatbot(
-                    label="",
-                    height=400,
-                    placeholder="Ask about resource gaps...",
-                )
-                msg = gr.Textbox(
-                    label="",
-                    placeholder="Ask about resource gaps, accessibility, or recommendations...",
-                    lines=2,
-                    scale=1,
-                    elem_id="chat-input",
-                )
+            with gr.Column(scale=3):
+                chatbot = gr.Chatbot(label="", height=400)
+                msg = gr.Textbox(placeholder="Ask about resource gaps, accessibility, or recommendations...", lines=2)
                 with gr.Row():
-                    submit_btn = gr.Button(
-                        "✦ Analyze",
-                        variant="primary",
-                        size="sm",
-                        elem_classes="primary",
-                    )
-                    clear_btn = gr.Button(
-                        "Clear",
-                        size="sm",
-                    )
+                    submit = gr.Button("✦ Analyze", variant="primary")
+                    clear = gr.Button("Clear")
 
-            # Right: context panel
             with gr.Column(scale=2):
-                gr.HTML('<div class="prose"><h3>⚡ Quick Analysis</h3></div>')
-                quick_btn_1 = gr.Button(
-                    "🏥  Which areas have the weakest healthcare access?",
-                    elem_classes="quick-btn",
-                )
-                quick_btn_2 = gr.Button(
-                    "🚌  Analyze Parramatta's transport and compare with neighbors",
-                    elem_classes="quick-btn",
-                )
-                quick_btn_3 = gr.Button(
-                    "🏫  Rank all 109 areas by education coverage",
-                    elem_classes="quick-btn",
-                )
-                quick_btn_4 = gr.Button(
-                    "💰  Is higher income always = higher resources?",
-                    elem_classes="quick-btn",
-                )
+                gr.Markdown("### ⚡ Quick Analysis")
+                q1 = gr.Button("🏥 Which areas have the weakest healthcare?", elem_classes="quick-btn")
+                q2 = gr.Button("🚌 Analyze Parramatta transport vs neighbors", elem_classes="quick-btn")
+                q3 = gr.Button("🏫 Rank areas by education coverage", elem_classes="quick-btn")
+                q4 = gr.Button("💰 Is income correlated with resources?", elem_classes="quick-btn")
 
-                gr.HTML('<div class="prose" style="margin-top:16px;"><h3>📊 Session</h3></div>')
-                context_display = gr.Textbox(
-                    label="",
-                    value="Ready. No analysis yet.",
-                    lines=5,
-                    interactive=False,
-                    elem_classes="status-bar",
-                    show_label=False,
-                )
+                gr.Markdown("### 📊 Session")
+                ctx = gr.Textbox(value="Ready.", lines=4, interactive=False, elem_classes="status-bar")
 
-        # ── Footer ─────────────────────────────────────────
-        gr.HTML("""
-        <div class="app-footer">
-            <span>Data: ABS Census 2021 &middot; Transport for NSW &middot; NSW DoE &middot; AEC &middot; City of Sydney</span>
-            <span>Powered by smolagents + DeepSeek</span>
-        </div>
-        """)
+        gr.HTML("""<div style="padding:8px 24px;border-top:1px solid #2a2a4a;font-size:10px;color:#6868a0;display:flex;justify-content:space-between"><span>Data: ABS · TfNSW · NSW DoE · AEC · City of Sydney</span><span>Powered by smolagents + DeepSeek</span></div>""")
 
-        # ═══════════════════════════════════════════════════
-        # Callbacks
-        # ═══════════════════════════════════════════════════
         def respond(message, history):
             if not message or not message.strip():
-                return "", history, quick_map_html(), "Ready."
-
+                return "", history or [], _build_map_html(), "Ready."
             try:
-                response = session_manager.chat(message)
+                response = session_mgr.chat(message)
             except Exception as e:
-                response = f"❌ {str(e)}"
-                return "", history if history else [], quick_map_html(), "Error."
-
+                return "", history or [], _build_map_html(), f"Error: {e}"
             history = history or []
-            history.append((message, response))
-
-            # Extract areas for map highlighting
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": response})
             areas = _extract_areas(response)
-            new_map = quick_map_html(highlight_areas=areas if areas else None)
-            ctx = session_manager.get_context_summary()
+            return "", history, _build_map_html(highlight_areas=areas), session_mgr.get_context_summary()
 
-            return "", history, new_map, ctx
-
-        def handle_quick(query):
-            """Fill textbox and auto-trigger."""
-            return query
-
-        # Wire
-        submit_btn.click(
-            respond,
-            inputs=[msg, chatbot],
-            outputs=[msg, chatbot, map_display, context_display],
-        )
-        msg.submit(
-            respond,
-            inputs=[msg, chatbot],
-            outputs=[msg, chatbot, map_display, context_display],
-        )
-        clear_btn.click(
-            lambda: ("", [], quick_map_html(), "Cleared."),
-            outputs=[msg, chatbot, map_display, context_display],
-        )
+        submit.click(respond, [msg, chatbot], [msg, chatbot, map_display, ctx])
+        msg.submit(respond, [msg, chatbot], [msg, chatbot, map_display, ctx])
+        clear.click(lambda: ("", [], _build_map_html(), "Cleared."), outputs=[msg, chatbot, map_display, ctx])
 
         for btn, query in [
-            (quick_btn_1, "Which areas have the weakest public service scores? List top 5 with data."),
-            (quick_btn_2, "Analyze Parramatta's transport accessibility and compare it to its neighboring suburbs."),
-            (quick_btn_3, "Rank all areas by education coverage. Show the bottom 5 and their z-scores."),
-            (quick_btn_4, "Is there a correlation between median income and RAI scores? Show the data."),
+            (q1, "Which areas have the weakest public service scores? List top 5 with data."),
+            (q2, "Analyze Parramatta's transport accessibility and compare to its neighbors."),
+            (q3, "Rank all areas by education coverage. Show the bottom 5."),
+            (q4, "Is there a correlation between income and RAI? Show evidence."),
         ]:
-            btn.click(
-                lambda q=query: q, outputs=[msg]
-            ).then(
-                respond, inputs=[msg, chatbot], outputs=[msg, chatbot, map_display, context_display]
-            )
+            btn.click(lambda q=query: q, outputs=[msg]).then(respond, [msg, chatbot], [msg, chatbot, map_display, ctx])
 
     return demo
 
 
-def launch(config_path: str = "config.yaml", share: bool = False, port: int = 7860):
-    import sys, os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+def launch(port=7860, share=False):
     from src.config import load_config
     from src.agent import create_agent_with_kb
     from src.session.session_manager import SessionManager
     from data_warehouse.connection import DatabaseManager
 
-    config = load_config(config_path)
+    config = load_config()
     db_mgr = DatabaseManager(config)
-    _, conn = db_mgr.connect()
+    engine, conn = db_mgr.connect()
 
     print("🧠 Building Agent...")
     agent, retriever = create_agent_with_kb(config, conn)
     session_mgr = SessionManager(agent)
 
-    print(f"🌐 Launching on http://localhost:{port}")
+    print(f"🌐 http://localhost:{port}")
     demo = create_ui(agent, session_mgr)
     demo.queue(default_concurrency_limit=1).launch(
-        server_port=port,
-        share=share,
-        css=CUSTOM_CSS,
-        favicon_path=None,
-        show_api=False,
+        server_port=port, share=share, css=CUSTOM_CSS,
     )
 
 

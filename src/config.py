@@ -13,7 +13,14 @@ def _resolve_env(value: str) -> str:
 
 
 def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
-    """Load and resolve YAML configuration."""
+    """Load and resolve YAML configuration. Auto-loads .env file if present."""
+    # Load .env into os.environ if dotenv is available
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(Path(__file__).parent.parent / ".env")
+    except Exception:
+        pass
+
     path = Path(config_path)
     if not path.exists():
         # Try parent directory
