@@ -1,0 +1,71 @@
+# GeoAnalysis Agent Configuration
+# ========================================
+
+# LLM Model (LiteLLM model_id format)
+llm:
+  provider: "anthropic"              # anthropic | openai | deepseek | ollama
+  model_id: "anthropic/claude-sonnet-4-6"
+  # model_id: "deepseek/deepseek-chat"
+  # model_id: "openai/gpt-4o"
+  # model_id: "ollama_chat/qwen2.5:7b"
+  api_key: "${ANTHROPIC_API_KEY}"    # or ${OPENAI_API_KEY} / ${DEEPSEEK_API_KEY}
+  temperature: 0.1
+  max_tokens: 4096
+
+# Ollama (local only)
+ollama:
+  api_base: "http://localhost:11434"
+  num_ctx: 8192
+
+# PostgreSQL + PostGIS
+database:
+  host: "localhost"
+  port: 5432
+  db_name: "geoanalysis"
+  user: "postgres"
+  password: "${DB_PASSWORD}"
+  schema: "public"
+  srid: 4283                        # GDA94
+
+# ChromaDB
+chromadb:
+  persist_directory: "./chroma_db"
+  collection_name: "suburb_reports"
+
+# Embedding
+embedding:
+  model: "sentence-transformers/all-MiniLM-L6-v2"
+  batch_size: 32
+
+# RAG
+rag:
+  semantic_k: 5                      # Top-K from vector search
+  max_neighbors: 8                   # Max adjacent areas to include
+  neighbor_distance_m: 5000          # Max centroid distance for "neighbor"
+  similarity_weight: 0.7
+  spatial_weight: 0.3
+  min_similarity_threshold: 0.5      # Below this → refuse to answer
+
+# Agent
+agent:
+  max_steps: 10
+  executor_type: "local"             # local | e2b | docker
+  additional_imports:
+    - "psycopg2"
+    - "pandas"
+    - "numpy"
+
+# Session
+session:
+  max_history_rounds: 10
+
+# Evaluation
+eval:
+  evaluator_model: "deepseek/deepseek-chat"
+  sample_rate: 0.1                   # 10% of queries sampled for eval
+  alert_threshold: 3.0               # Average score below this → human review
+
+# Logging
+logging:
+  level: "INFO"
+  tool_calls_dir: "./logs/tool_calls"

@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# ChromaDB
+chroma_db/
+
+# Environment & credentials
+.env
+Credentials.json
+*.local.yaml
+
+# IDE
+.vscode/
+.idea/
+
+# Notebook outputs
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# E2B / Docker sandbox artifacts
+.e2b/
+
+# Large external data (loaded by import_data.py)
+SA2_2021_AUST_SHP_GDA2020/
+SA2_2021_AUST_SHP_GDA2020.zip
+Datasets/
+logs/
