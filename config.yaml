@@ -3,12 +3,12 @@
 
 # LLM Model (LiteLLM model_id format)
 llm:
-  provider: "anthropic"              # anthropic | openai | deepseek | ollama
-  model_id: "anthropic/claude-sonnet-4-6"
-  # model_id: "deepseek/deepseek-chat"
+  provider: "deepseek"               # deepseek (default, fast & cheap) | anthropic | openai | ollama
+  model_id: "deepseek/deepseek-chat"
+  # model_id: "anthropic/claude-sonnet-4-6"
   # model_id: "openai/gpt-4o"
   # model_id: "ollama_chat/qwen2.5:7b"
-  api_key: "${ANTHROPIC_API_KEY}"    # or ${OPENAI_API_KEY} / ${DEEPSEEK_API_KEY}
+  api_key: "${DEEPSEEK_API_KEY}"     # or ${ANTHROPIC_API_KEY} / ${OPENAI_API_KEY}
   temperature: 0.1
   max_tokens: 4096
 
