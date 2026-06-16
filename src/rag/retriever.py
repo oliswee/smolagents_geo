@@ -58,11 +58,34 @@ class SpatialRetriever:
 
         try:
             import pandas as pd
-            df = pd.read_sql_query(sql, self.conn)
+            # Handle SQLAlchemy objects by getting raw psycopg2 connection
+            raw = self.conn
+            if hasattr(raw, 'raw_connection'):
+                raw = raw.raw_connection()
+            elif hasattr(raw, 'connection'):
+                raw = raw.connection
+            elif hasattr(raw, 'engine'):
+                raw = raw.engine.raw_connection()
+
+            df = pd.read_sql_query(sql, raw)
             return df["neighbor_name"].tolist()
         except Exception as e:
-            print(f"Neighbor query failed: {e}")
-            return []
+            # Fallback: use psycopg2 directly
+            try:
+                import psycopg2, json, os
+                with open("Credentials.json") as f:
+                    creds = json.load(f)
+                raw2 = psycopg2.connect(
+                    host=creds["host"], port=creds["port"],
+                    dbname=creds.get("db_name", creds["user"]),
+                    user=creds["user"], password=creds["password"],
+                )
+                df = pd.read_sql_query(sql, raw2)
+                raw2.close()
+                return df["neighbor_name"].tolist()
+            except Exception as e2:
+                print(f"Neighbor query failed: {e} | Fallback: {e2}")
+                return []
 
     def retrieve(
         self,
